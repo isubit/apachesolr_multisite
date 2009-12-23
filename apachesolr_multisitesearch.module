@@ -61,7 +61,7 @@ function apachesolr_multisitesearch_execute($keys, $filters, $solrsort, $base_pa
   $query->multisite = TRUE;
   // This is the object that does the communication with the solr server.
   $solr = apachesolr_get_solr();
-  $params += apachesolr_search_basic_params($query);
+  $params += apachesolr_multisitesearch_basic_params($query);
   if ($keys) {
     $params += apachesolr_search_highlighting_params($query);
     $params += apachesolr_search_spellcheck_params($query);
@@ -120,3 +120,55 @@ function apachesolr_multisitesearch_apachesolr_modify_query(&$query, &$params, $
   }
 }
 
+function apachesolr_multisitesearch_basic_params($query) {
+  $params = array(
+    'fl' => 'id,nid,title,comment_count,type,created,changed,score,path,url,uid,name,site,hash',
+    'rows' => variable_get('apachesolr_rows', 10),
+    'facet' => 'true',
+    'facet.mincount' => 1,
+    'facet.sort' => 'true'
+  );
+  return $params;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function apachesolr_multisitesearch_theme() {
+  return array(
+    'apachesolr_multisitesearch_username' => array(
+      'arguments' => array('doc' => NULL),
+    ),
+  );
+}
+
+/**
+ * Modified username theme function.
+ *
+ * @see theme_username()
+ */
+function theme_apachesolr_multisitesearch_username($doc) {
+
+  if ($object->name) {
+    // Shorten the name when it is too long or it will break many tables.
+    if (drupal_strlen($object->name) > 20) {
+      $name = drupal_substr($object->name, 0, 15) .'...';
+    }
+    else {
+      $name = $object->name;
+    }
+
+    // Only make links for local users.
+    if ($object->uid && apachesolr_site_hash() == $doc->hash && user_access('access user profiles')) {
+      $output = l($name, 'user/'. $object->uid, array('attributes' => array('title' => t('View user profile.'))));
+    }
+    else {
+      $output = check_plain($name);
+    }
+  }
+  else {
+    $output = check_plain(variable_get('anonymous', t('Anonymous')));
+  }
+
+  return $output;
+}
