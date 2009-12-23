@@ -1,0 +1,13 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *   Provides a multi-site search implementation for use with the Apache Solr module
+ */
+
+/**
+ * Implementation of hook_search()
+ /*
+function apachesolr_multisitesearch_search() {
+}
