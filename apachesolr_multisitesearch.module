@@ -242,13 +242,67 @@ function apachesolr_multisitesearch_apachesolr_modify_query(&$query, &$params, $
 
 function apachesolr_multisitesearch_basic_params($query) {
   $params = array(
-    'fl' => 'id,nid,title,comment_count,type_name,entity,created,changed,score,path,url,uid,name,site,hash',
+    'fl' => 'id,nid,title,comment_count,type_name,entity,created,changed,score,url,uid,name,site,hash',
     'rows' => variable_get('apachesolr_rows', 10),
     'facet' => 'true',
     'facet.mincount' => 1,
     'facet.sort' => 'true'
   );
   return $params;
+}
+
+function apachesolr_multisitesearch_process_response($response, $query, $params) {
+  $results = array();
+  // We default to getting snippets from the body.
+  $hl_fl = is_null($params['hl.fl']) ? 'body' : $params['hl.fl'];
+  $total = $response->response->numFound;
+  apachesolr_pager_init($total, $params['rows']);
+  if ($total > 0) {
+    foreach ($response->response->docs as $doc) {
+      $extra = array();
+
+      // Find the nicest available snippet.
+      if (isset($response->highlighting->{$doc->id}->$hl_fl)) {
+        $snippet = theme('apachesolr_search_snippets', $doc, $response->highlighting->{$doc->id}->$hl_fl);
+      }
+      elseif (isset($doc->teaser)) {
+        $snippet = theme('apachesolr_search_snippets', $doc, array(truncate_utf8($doc->teaser, 256, TRUE)));
+      }
+      else {
+        $snippet = '';
+      }
+
+      if (!isset($doc->body)) {
+        $doc->body = $snippet;
+      }
+      $doc->created = strtotime($doc->created);
+      $doc->changed = strtotime($doc->changed);
+      // Allow modules to alter each document.
+      drupal_alter('apachesolr_search_result', $doc);
+      // Copy code from comment_nodeapi().
+      $extra[] = format_plural($doc->comment_count, '1 comment', '@count comments');
+      $results[] = array(
+        'link' => $doc->url,
+        'type' => $doc->type_name,
+        // template_preprocess_search_result() runs check_plain() on the title
+        // again.  Decode to correct the display.
+        'title' => htmlspecialchars_decode($doc->title, ENT_QUOTES),
+        'user' => theme('apachesolr_multisitesearch_username', $doc),
+        'date' => $doc->created,
+        'node' => $doc,
+        'extra' => $extra,
+        'score' => $doc->score,
+        'snippet' => $snippet,
+      );
+    }
+
+    // Hook to allow modifications of the retrieved results
+    foreach (module_implements('apachesolr_process_results') as $module) {
+      $function = $module .'_apachesolr_process_results';
+      $function($results);
+    }
+  }
+  return $results;
 }
 
 
@@ -295,8 +349,20 @@ function apachesolr_multisitesearch_block($op = 'list', $delta = 0, $edit = arra
           case 'hash':
             return apachesolr_facet_block($response, $query, 'apachesolr_multisitesearch', $delta, $delta, t('Filter by site'), 'theme_apachesolr_breadcrumb_hash');
         }
-
       }
+      break;
+
+    case 'configure':
+      if ($delta != 'currentsearch') {
+        return apachesolr_facetcount_form('apachesolr_multisitesearch', $delta);
+      }
+      break;
+
+    case 'save':
+      if ($delta != 'currentsearch') {
+        apachesolr_facetcount_save($edit);
+      }
+      break;
   }
 }
 
