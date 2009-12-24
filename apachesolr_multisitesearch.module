@@ -158,7 +158,7 @@ function apachesolr_multisitesearch_execute($keys, $filters, $solrsort, $base_pa
 
   // Cache the built query. Since all the built queries go through
   // this process, all the hook_invocations will happen later
-  apachesolr_current_query($query);
+  $current_query = apachesolr_current_query($query);
 
   // This hook allows modules to modify the query and params objects.
   apachesolr_modify_query($query, $params, $caller);
@@ -182,7 +182,7 @@ function apachesolr_multisitesearch_execute($keys, $filters, $solrsort, $base_pa
   apachesolr_static_response_cache($response);
   apachesolr_multisitesearch_has_searched(TRUE);
   // Add search terms and filters onto the breadcrumb.
-  drupal_set_breadcrumb(array_merge(menu_get_active_breadcrumb(), $query->get_breadcrumb()));
+  drupal_set_breadcrumb(array_merge(menu_get_active_breadcrumb(), $current_query->get_breadcrumb()));
   return apachesolr_process_response($response, $query, $params);
 }
 
