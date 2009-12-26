@@ -6,80 +6,21 @@
  *   Provides a multi-site search implementation for use with the Apache Solr module
  */
 
-
-function apachesolr_multisitesearch_metadata() {
-  $document = new Apache_Solr_Document();
-  $document->id = apachesolr_document_id(0, 'multisite_metadata');
-  $document->site = url(NULL, array('absolute' => TRUE));
-  $document->hash = apachesolr_site_hash();
-  $document->entity = 'multisite_meta';
-  $document->ss_multisite_meta_sitename = variable_get('site_name', 'Drupal');
-  module_load_include('inc', 'apachesolr', 'apachesolr.index');
-  if (module_exists('taxonomy')) {
-    $vocabs = taxonomy_get_vocabularies();
-    foreach ($vocabs as $vid => $vocab) {
-          // We index each name as a string for cross-site faceting
-        // using the vocab name rather than vid in field construction .
-        $document->setMultiValue('sm_multisite_meta_taxonomy', apachesolr_vocab_name($vid));
-    }
-  }
-  drupal_alter('apachesolr_multisitesearch_metadata', $document);
-  return $document;
-}
-
 /**
- * Implementation of hook_cron().
+ * Implementation of hook_menu().
  */
-function apachesolr_multisitesearch_cron() {
-  // Update meta data 1x per day.
-  $last = variable_get('apachesolr_multisitesearch_last_metadata', 0);
-  $time = time();
-  if ($time - $last > 60*60*24 || 1) {
-    if (apachesolr_multisitesearch_update_metadata()) {
-      variable_set('apachesolr_multisitesearch_last_metadata', $time);
-    }
-  }
-  if (1) {
-    apachesolr_multisitesearch_get_metadata();
-  }
-}
-
-function apachesolr_multisitesearch_update_metadata() {
-  try {
-    // Get the $solr object
-    $solr = apachesolr_get_solr();
-    $metadata_doc = apachesolr_multisitesearch_metadata();
-    $solr->addDocuments(array($metadata_doc));
-    watchdog('Apache Solr Multisite', 'Updated site meta data');
-  }
-  catch (Exception $e) {
-    watchdog('Apache Solr Multisite', 'Indexing failed for meta data <br /> !message',
-             array('!message' => nl2br(strip_tags($e->getMessage()))), WATCHDOG_ERROR);
-  }
-}
-
-function apachesolr_multisitesearch_get_metadata() {
-  try {
-    // Get the $solr object
-    $solr = apachesolr_get_solr();
-    $params['qt'] = 'standard';
-    $params['fl'] = '*';
-    $response = $solr->search('entity:multisite_meta', 0, 100, $params);
-    foreach ($response->response->docs as $doc) {
-      // Convert doc into a simple array.
-      if (isset($doc->hash)) {
-        foreach ($doc as $k => $v) {
-          $data[$doc->hash][$k] = $v;
-        }
-      }
-    }
-    watchdog('Apache Solr Multisite', 'Fetched site meta data');
-    variable_set('apachesolr_multisitesearch_metadata', $data);
-  }
-  catch (Exception $e) {
-    watchdog('Apache Solr Multisite', 'Failed to fetch meta data <br /> !message',
-             array('!message' => nl2br(strip_tags($e->getMessage()))), WATCHDOG_ERROR);
-  }
+function apachesolr_multisitesearch_menu() {
+  $items = array();
+  $items['admin/settings/apachesolr/multisite-filters'] = array(
+    'title'              => 'Multisite filters',
+    'page callback'      => 'drupal_get_form',
+    'page arguments'     => array('apachesolr_multisitesearch_enabled_facets_form'),
+    'weight'             => -6,
+    'access arguments'   => array('administer search'),
+    'file'               => 'apachesolr_multisitesearch.admin.inc',
+    'type'               => MENU_LOCAL_TASK,
+  );
+  return $items;
 }
 
 /**
@@ -88,6 +29,27 @@ function apachesolr_multisitesearch_get_metadata() {
 function apachesolr_multisitesearch_menu_alter(&$menu) {
   if (isset($menu['search/apachesolr_multisitesearch/%menu_tail'])) {
     $menu['search/apachesolr_multisitesearch/%menu_tail']['page callback'] = 'apachesolr_search_view';
+  }
+}
+
+/**
+ * Implementation of hook_cron().
+ */
+function apachesolr_multisitesearch_cron() {
+  // Update meta data 1x per day max.
+  // Fetch meta data 1x per hour max.
+  // TODO - make these intervals controllable.
+  $last_update = variable_get('apachesolr_multisitesearch_last_metadata_update', 0);
+  $last_fetch = variable_get('apachesolr_multisitesearch_last_metadata_fetch', 0);
+  $time = time();
+  module_load_include('inc', 'apachesolr_multisitesearch', 'apachesolr_multisitesearch.admin');
+  if ($time - $last_update > 60*60*24) {
+    if (apachesolr_multisitesearch_update_metadata()) {
+      variable_set('apachesolr_multisitesearch_last_metadata', $time);
+    }
+  }
+  if ($time - $last_update > 60*60) {
+    apachesolr_multisitesearch_get_metadata();
   }
 }
 
@@ -190,7 +152,12 @@ function apachesolr_multisitesearch_add_facet_params(&$params, $query) {
   $facet_query_limits = variable_get('apachesolr_facet_query_limits', array());
   $facet_missing = variable_get('apachesolr_facet_missing', array());
 
-    foreach(apachesolr_multisitesearch_enabled_facets() as $delta => $facet_field) {
+  foreach (apachesolr_multisitesearch_enabled_facets() as $module => $module_facets) {
+    if (!module_exists($module)) {
+      // When modules are disabled their facet settings may remain.
+      continue;
+    }
+    foreach($module_facets as $delta => $facet_field) {
       // TODO: generalize handling of date and range facets.
       if (($facet_field == 'created' || $facet_field == 'changed')) {
         list($start, $end, $gap) = apachesolr_search_date_range($query, $facet_field);
@@ -213,7 +180,7 @@ function apachesolr_multisitesearch_add_facet_params(&$params, $query) {
         }
       }
     }
-
+  }
 
   if (!empty($params['facet.field'])) {
     // Add a default limit for fields where no limit was set.
@@ -234,7 +201,7 @@ function apachesolr_multisitesearch_has_searched($set = NULL) {
  * Implementation of hook_apachesolr_modify_query().
  */
 function apachesolr_multisitesearch_apachesolr_modify_query(&$query, &$params, $caller) {
-  if ($caller != 'apachesolr_multisitesearch') {
+  if (empty($query->multisite)) {
     // Limit single site searchs via the site hash.
     $query->add_filter('hash', apachesolr_site_hash());
   }
@@ -305,14 +272,13 @@ function apachesolr_multisitesearch_process_response($response, $query, $params)
   return $results;
 }
 
-
 /**
  * Implementation of hook_block().
  */
 function apachesolr_multisitesearch_block($op = 'list', $delta = 0, $edit = array()) {
   switch ($op) {
     case 'list':
-      $enabled_facets = apachesolr_multisitesearch_enabled_facets();
+      $enabled_facets = apachesolr_multisitesearch_enabled_facets('apachesolr_multisitesearch');
       $facets = apachesolr_multisitesearch_facets();
       // Add the blocks
       $blocks = array();
@@ -390,12 +356,12 @@ function apachesolr_multisitesearch_currentsearch($query) {
     return array('subject' => t('Current search'), 'content' => $content);
 }
 
-function apachesolr_multisitesearch_enabled_facets() {
-  return array(
-    'type_name' => 'type_name',
-    'name' => 'name',
-    'created' => 'created',
-  );
+function apachesolr_multisitesearch_enabled_facets($module = NULL) {
+  $facets = variable_get('apachesolr_multisitesearch_enabled_facets', array('apachesolr_multisitesearch' => array()));
+  if (isset($module)) {
+    return isset($facets[$module]) ? $facets[$module] : array();
+  }
+  return $facets;
 }
 
 /**
@@ -403,47 +369,15 @@ function apachesolr_multisitesearch_enabled_facets() {
  *
  * Returns an array keyed by block delta.
  */
-function apachesolr_multisitesearch_facets() {
-  $facets = array();
-
-  $facets['type_name'] = array(
-    'info' => t('Apache Solr Multisite Search: Filter by content type'),
-    'facet_field' => 'type_name',
-  );
-
-  $facets['name'] = array(
-    'info' => t('Apache Solr Multisite Search: Filter by author'),
-    'facet_field' => 'name',
-  );
-
-  $facets['changed'] = array(
-    'info' => t('Apache Solr Multisite Search: Filter by updated date'),
-    'facet_field' => 'changed',
-  );
-  $facets['created'] = array(
-    'info' => t('Apache Solr Multisite Search: Filter by post date'),
-    'facet_field' => 'created',
-  );
-  $facets['hash'] = array(
-    'info' => t('Apache Solr Multisite Search: Filter by site'),
-    'facet_field' => 'hash',
-  );
-  // Get taxonomy vocabulary facets.
-  // @todo - use meta data also/instead.
-  if (module_exists('taxonomy')) {
-    module_load_include('inc', 'apachesolr', 'apachesolr.index');
-    $vocabs = taxonomy_get_vocabularies();
-    foreach ($vocabs as $vid => $vocab) {
-      // In this case the delta and facet field are the same.
-      $delta = 'sm_vid_'. apachesolr_vocab_name($vid);
-      $facets[$delta] = array(
-        'info' => t('Apache Solr Multisite Search: Filter by taxonomy @name', array('@name' => $vocab->name)),
-        'facet_field' => $delta,
-      );
+function apachesolr_multisitesearch_facets($rebuild = FALSE) {
+  if (!$rebuild) {
+    $cache = cache_get('apachesolr_multisitesearch:facets', 'cache_apachesolr');
+    if (isset($cache->data)) {
+ 	    return $cache->data;
     }
   }
-
-  return $facets;
+  module_load_include('inc', 'apachesolr_multisitesearch', 'apachesolr_multisitesearch.admin');
+  return apachesolr_multisitesearch_rebuild_facets();
 }
 
 
