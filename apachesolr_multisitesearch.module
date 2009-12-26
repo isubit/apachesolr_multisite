@@ -440,3 +440,11 @@ function theme_apachesolr_multisitesearch_username($doc) {
 
   return $output;
 }
+
+/**
+ * Implementation of hook_apachesolr_delete_index_alter()
+ */
+function apachesolr_multisitesearch_apachesolr_delete_index_alter(&$query) {
+  // Limit to the current site.
+  $query = "($query) AND hash:" . apachesolr_site_hash();
+}
