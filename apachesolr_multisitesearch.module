@@ -45,12 +45,13 @@ function apachesolr_multisitesearch_cron() {
   module_load_include('inc', 'apachesolr_multisitesearch', 'apachesolr_multisitesearch.admin');
   if ($time - $last_update > 60*60*24) {
     if (apachesolr_multisitesearch_update_metadata()) {
-      variable_set('apachesolr_multisitesearch_last_metadata', $time);
+      variable_set('apachesolr_multisitesearch_last_metadata_update', $time);
     }
   }
-  if ($time - $last_update > 60*60) {
+  elseif ($time - $last_fetch > 60*60) {
     apachesolr_multisitesearch_get_metadata();
   }
+  apachesolr_index_updated($time);
 }
 
 /**
@@ -209,7 +210,7 @@ function apachesolr_multisitesearch_apachesolr_modify_query(&$query, &$params, $
 
 function apachesolr_multisitesearch_basic_params($query) {
   $params = array(
-    'fl' => 'id,nid,title,comment_count,type_name,entity,created,changed,score,url,uid,name,site,hash',
+    'fl' => 'id,nid,title,comment_count,type,type_name,entity,created,changed,score,url,uid,name,site,hash',
     'rows' => variable_get('apachesolr_rows', 10),
     'facet' => 'true',
     'facet.mincount' => 1,
@@ -306,8 +307,8 @@ function apachesolr_multisitesearch_block($op = 'list', $delta = 0, $edit = arra
             return apachesolr_multisitesearch_currentsearch($query);
            case 'name':
             return apachesolr_facet_block($response, $query, 'apachesolr_multisitesearch', $delta, $delta, t('Filter by author'));
-          case 'type_name':
-            return apachesolr_facet_block($response, $query, 'apachesolr_multisitesearch', $delta, $delta, t('Filter by type'));
+          case 'type':
+            return apachesolr_facet_block($response, $query, 'apachesolr_multisitesearch', $delta, $delta, t('Filter by type'), 'apachesolr_search_get_type');
           case 'changed':
             return apachesolr_date_facet_block($response, $query, 'apachesolr_multisitesearch', $delta, $delta, t('Filter by modification date'));
           case 'created':

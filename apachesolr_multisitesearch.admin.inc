@@ -18,7 +18,7 @@ function apachesolr_multisitesearch_metadata() {
     $vocabs = taxonomy_get_vocabularies();
     foreach ($vocabs as $vid => $vocab) {
           // We index each name as a string for cross-site faceting
-        // using the vocab name rather than vid in field construction .
+        // using the vocab name rather than vid in field construction.
         $document->setMultiValue('sm_multisite_meta_taxonomy', apachesolr_vocab_name($vid));
     }
   }
@@ -33,11 +33,13 @@ function apachesolr_multisitesearch_update_metadata() {
     $metadata_doc = apachesolr_multisitesearch_metadata();
     $solr->addDocuments(array($metadata_doc));
     watchdog('Apache Solr Multisite', 'Updated site meta data');
+    return TRUE;
   }
   catch (Exception $e) {
     watchdog('Apache Solr Multisite', 'Indexing failed for meta data <br /> !message',
              array('!message' => nl2br(strip_tags($e->getMessage()))), WATCHDOG_ERROR);
   }
+  return FALSE;
 }
 
 function apachesolr_multisitesearch_get_metadata() {
@@ -143,21 +145,36 @@ function apachesolr_multisitesearch_enabled_facets_form() {
     '#access' => !$has_facets,
   );
 
+
   $form['#tree'] = TRUE;
   $form['submit_message'] = array(
     '#type' => 'value',
     '#value' => t('The Apache Solr Multisite Search filter settings were changed.  To arrange the blocks for your enabled filters, visit the <a href="@url">blocks administration page</a>.', array('@url' => url('admin/build/block'))),
   );
-
+  $form['admin'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Administrative functions'),
+  );
+  $form['admin']['refresh'] = array(
+    '#type' => 'submit',
+    '#value' => t('Refresh metadata on cron'),
+    '#submit' => array('apachesolr_multisitesearch_metadata_refresh'),
+  );
   return $form;
+}
+
+function apachesolr_multisitesearch_metadata_refresh() {
+  variable_del('apachesolr_multisitesearch_last_metadata_update', 0);
+  variable_del('apachesolr_multisitesearch_last_metadata_fetch', 0);
+  drupal_set_message(t('Meta deta will be sent to the index on the next cron run, and fetched on the subsequent cron.'));
 }
 
 function apachesolr_multisitesearch_rebuild_facets() {
   $facets = array();
 
-  $facets['type_name'] = array(
+  $facets['type'] = array(
     'info' => t('Apache Solr Multisite Search: Filter by content type'),
-    'facet_field' => 'type_name',
+    'facet_field' => 'type',
   );
 
   $facets['name'] = array(
@@ -188,8 +205,10 @@ function apachesolr_multisitesearch_rebuild_facets() {
       if ($hash == $this_site_hash) {
         continue;
       }
-      foreach ($site['sm_multisite_meta_taxonomy'] as $delta) {
-        $taxo[$delta][] = $site['ss_multisite_meta_sitename'];
+      foreach ($site['sm_multisite_meta_taxonomy'] as $name) {
+        $delta = 'sm_vid_'. $name;
+        $taxo[$delta]['name'] = $name;
+        $taxo[$delta]['sites'][] = $site['ss_multisite_meta_sitename'];
       }
     }
     $vocabs = taxonomy_get_vocabularies();
@@ -198,7 +217,7 @@ function apachesolr_multisitesearch_rebuild_facets() {
       $delta = 'sm_vid_'. apachesolr_vocab_name($vid);
       $name = $vocab->name;
       if (isset($taxo[$delta])) {
-        $name .= t(' (this site and !sites)', array('!sites' => implode(', ', $taxo[$delta])));
+        $name .= t(' (this site and !sites)', array('!sites' => implode(', ', $taxo[$delta]['sites'])));
         unset($taxo[$delta]);
       }
       $facets[$delta] = array(
@@ -208,8 +227,8 @@ function apachesolr_multisitesearch_rebuild_facets() {
     }
     if (variable_get('apachesolr_multisitesearch_include_remote_taxonomies', TRUE)) {
       // Handle taxonomies only present at other sites.
-      foreach ($taxo as $delta => $sites) {
-        $name = $delta . ' (' . implode(', ', $sites) . ')';
+      foreach ($taxo as $delta => $data) {
+        $name = $data['name'] . ' (' . implode(', ', $data['sites']) . ')';
         $facets[$delta] = array(
           'info' => t('Apache Solr Multisite Search: Filter by taxonomy @name', array('@name' => $name)),
           'facet_field' => $delta,
