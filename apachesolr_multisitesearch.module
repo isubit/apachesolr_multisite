@@ -146,7 +146,7 @@ function apachesolr_multisitesearch_execute($keys, $filters, $solrsort, $base_pa
   apachesolr_multisitesearch_has_searched(TRUE);
   // Add search terms and filters onto the breadcrumb.
   drupal_set_breadcrumb(array_merge(menu_get_active_breadcrumb(), $current_query->get_breadcrumb()));
-  return apachesolr_process_response($response, $query, $params);
+  return apachesolr_multisitesearch_process_response($response, $query, $params);
 }
 
 function apachesolr_multisitesearch_add_facet_params(&$params, $query) {
@@ -417,18 +417,18 @@ function theme_apachesolr_breadcrumb_hash($hash, $exclude = FALSE) {
  */
 function theme_apachesolr_multisitesearch_username($doc) {
 
-  if ($object->name) {
+  if ($doc->name) {
     // Shorten the name when it is too long or it will break many tables.
-    if (drupal_strlen($object->name) > 20) {
-      $name = drupal_substr($object->name, 0, 15) .'...';
+    if (drupal_strlen($doc->name) > 20) {
+      $name = drupal_substr($doc->name, 0, 15) .'...';
     }
     else {
-      $name = $object->name;
+      $name = $doc->name;
     }
 
     // Only make links for local users.
-    if ($object->uid && apachesolr_site_hash() == $doc->hash && user_access('access user profiles')) {
-      $output = l($name, 'user/'. $object->uid, array('attributes' => array('title' => t('View user profile.'))));
+    if ($doc->uid && apachesolr_site_hash() == $doc->hash && user_access('access user profiles')) {
+      $output = l($name, 'user/'. $doc->uid, array('attributes' => array('title' => t('View user profile.'))));
     }
     else {
       $output = check_plain($name);
