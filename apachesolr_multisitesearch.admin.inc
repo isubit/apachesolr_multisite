@@ -46,6 +46,7 @@ function apachesolr_multisitesearch_get_metadata() {
   try {
     // Get the $solr object
     $solr = apachesolr_get_solr();
+    $solr->setCollapseSingleValueArrays(FALSE);
     $params['qt'] = 'standard';
     $params['fl'] = '*';
     $response = $solr->search('entity:multisite_meta', 0, 100, $params);
