@@ -36,19 +36,23 @@ function apachesolr_multisitesearch_menu_alter(&$menu) {
  * Implementation of hook_cron().
  */
 function apachesolr_multisitesearch_cron() {
-  // Update meta data 1x per day max.
-  // Fetch meta data 1x per hour max.
+  apachesolr_multisitesearch_refresh_metadata();
+}
+
+function apachesolr_multisitesearch_refresh_metadata() {
+  // Update meta data 1x per hour max.
+  // Fetch meta data 1x per 5 minutes max.
   // TODO - make these intervals controllable.
   $last_update = variable_get('apachesolr_multisitesearch_last_metadata_update', 0);
   $last_fetch = variable_get('apachesolr_multisitesearch_last_metadata_fetch', 0);
   $time = time();
   module_load_include('inc', 'apachesolr_multisitesearch', 'apachesolr_multisitesearch.admin');
-  if ($time - $last_update > 60*60*24) {
+  if ($time - $last_update > 60*60) {
     if (apachesolr_multisitesearch_update_metadata()) {
       variable_set('apachesolr_multisitesearch_last_metadata_update', $time);
     }
   }
-  elseif ($time - $last_fetch > 60*60) {
+  if ($time - $last_fetch > 60*5) {
     apachesolr_multisitesearch_get_metadata();
   }
   apachesolr_index_updated($time);
@@ -82,6 +86,17 @@ function apachesolr_multisitesearch_search($op = 'search', $keys = NULL) {
       }
       break;
   } // switch
+}
+
+/**
+ * Implementation of hook_apachesolr_process_results()
+ */
+function apachesolr_multisitesearch_apachesolr_process_results(&$results, $namespace = FALSE) {
+  if ($namespace == 'apachesolr_multisitesearch') {
+    foreach ($results as $key => $result) {
+      $results[$key]['extra'][] = theme('apachesolr_breadcrumb_hash', $result['node']->hash);
+    }
+  }
 }
 
 /**
@@ -267,7 +282,8 @@ function apachesolr_multisitesearch_process_response($response, $query, $params)
     // Hook to allow modifications of the retrieved results
     foreach (module_implements('apachesolr_process_results') as $module) {
       $function = $module .'_apachesolr_process_results';
-      $function($results);
+      // 2nd param is a namespace for those modules which might use it.
+      $function($results, 'apachesolr_multisitesearch');
     }
   }
   return $results;

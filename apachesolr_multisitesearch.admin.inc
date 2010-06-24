@@ -49,7 +49,7 @@ function apachesolr_multisitesearch_get_metadata() {
     $solr->setCollapseSingleValueArrays(FALSE);
     $params['qt'] = 'standard';
     $params['fl'] = '*';
-    $response = $solr->search('entity:multisite_meta', 0, 100, $params);
+    $response = $solr->search('entity:multisite_meta', 0, 1000, $params);
     foreach ($response->response->docs as $doc) {
       // Convert doc into a simple array.
       if (isset($doc->hash)) {
@@ -66,6 +66,27 @@ function apachesolr_multisitesearch_get_metadata() {
   }
   catch (Exception $e) {
     watchdog('Apache Solr Multisite', 'Failed to fetch meta data <br /> !message',
+             array('!message' => nl2br(strip_tags($e->getMessage()))), WATCHDOG_ERROR);
+  }
+}
+
+function apachesolr_multisitesearch_get_site_hashes() {
+  try {
+    // Get the $solr object
+    $solr = apachesolr_get_solr();
+    $solr->setCollapseSingleValueArrays(FALSE);
+    $params['qt'] = 'standard';
+    $params['fl'] = '';
+    $params['facet'] = 'true';
+    $params['facet.field'][] = 'hash';
+    $params['facet.mincount'] = 1;
+    $params['facet.limit'] = '1000';
+    $response = $solr->search('*:*', 0, 0, $params);
+    $results = (array)$response->facet_counts->facet_fields->hash;
+    return $results;
+  }
+  catch (Exception $e) {
+    watchdog('Apache Solr Multisite', 'Failed to fetch hash facet count <br /> !message',
              array('!message' => nl2br(strip_tags($e->getMessage()))), WATCHDOG_ERROR);
   }
 }
@@ -161,16 +182,76 @@ function apachesolr_multisitesearch_enabled_facets_form() {
   );
   $form['admin']['refresh'] = array(
     '#type' => 'submit',
-    '#value' => t('Refresh metadata on cron'),
-    '#submit' => array('apachesolr_multisitesearch_metadata_refresh'),
+    '#value' => t('Refresh metadata now'),
+    '#prefix' => '<p>' . t('Multisite metadata is used to communicate between all of the sites in a multisite setup. If site names are not showing properly in the search results and facet blocks try refreshing the metadata. Metadata is also refreshed periodically on cron runs.') . '</p>',
+    '#submit' => array('apachesolr_multisitesearch_refresh_metadata_now'),
   );
+  
+  // Use the metadata and a list of all the hashes in the index
+  // to build up checkboxes for deleting site indexes.
+  // This is only necessary because sometimes hashes get
+  // stranded in the index and deleting the index from the normal
+  // admin screen doesn't rectify the problem.
+  $metadata = variable_get('apachesolr_multisitesearch_metadata', array());
+  $hashes = apachesolr_multisitesearch_get_site_hashes();
+  foreach ($hashes as $hash => $count) {
+    if ($hash == apachesolr_site_hash()) {
+      $options[$hash] = t('This site (!site, !count documents)', array('!site' => variable_get('site_name', 'Drupal'), '!count' => $count));
+    }
+    elseif ($metadata[$hash]) {
+      $options[$hash] = $metadata[$hash]['site'] . ' ' . t('(!count documents)', array('!count' => $count));
+    }
+    else {
+      $options[$hash] = $hash . ' ' . t('(!count documents)', array('!count' => $count));
+    }
+  }
+  
+  if (count($options) > 0) {
+    $form['admin']['delete']['hashes'] = array(
+      '#type' => 'checkboxes',
+      '#title' => t('Delete data from sites using this index'),
+      '#options' => $options,
+      '#description' => t('If you end up in a situation where the index has hashes that no longer map to real active sites, use this option to delete the outdated data. If you delete another site\'s index from this site, that site will have to first trigger a re-index, and then run cron until the index is rebuilt.'),
+    );
+    $form['admin']['delete']['submit'] = array(
+      '#type' => 'submit',
+      '#value' => t('Delete selected indexes'),
+      '#submit' => array('apachesolr_multisitesearch_delete_indexes'),
+    );
+  }
   return $form;
 }
 
-function apachesolr_multisitesearch_metadata_refresh() {
-  variable_del('apachesolr_multisitesearch_last_metadata_update', 0);
-  variable_del('apachesolr_multisitesearch_last_metadata_fetch', 0);
-  drupal_set_message(t('Meta deta will be sent to the index on the next cron run, and fetched on the subsequent cron.'));
+/**
+ * Submit handler for the "Delete selected indexes" button.
+ */
+function apachesolr_multisitesearch_delete_indexes($form, &$form_state) {
+  // Instantiate a new Solr object.
+  $solr = apachesolr_get_solr();
+  foreach ($form_state['values']['admin']['delete']['hashes'] as $hash) {
+    if ($hash) {
+      $query = "hash:$hash";
+      $solr->deleteByQuery($query);
+      drupal_set_message(t('The index for !hash has been deleted.', array('!hash' => $hash)));
+      if (apachesolr_site_hash() == $hash) {
+        // Rebuild our node-tracking table.
+        apachesolr_rebuild_index_table();
+        apachesolr_index_updated(time());
+      }
+    }
+  }
+  $solr->commit();
+  apachesolr_multisitesearch_get_metadata();
+}
+
+/**
+ * Submit handler for the "Refresh metadata now" button.
+ */
+function apachesolr_multisitesearch_refresh_metadata_now() {
+  variable_del('apachesolr_multisitesearch_last_metadata_update');
+  variable_del('apachesolr_multisitesearch_last_metadata_fetch');
+  apachesolr_multisitesearch_refresh_metadata();
+  drupal_set_message(t('The metadata has been refreshed.'));
 }
 
 function apachesolr_multisitesearch_rebuild_facets() {
