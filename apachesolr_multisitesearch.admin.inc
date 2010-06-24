@@ -56,6 +56,9 @@ function apachesolr_multisitesearch_get_metadata() {
         foreach ($doc as $k => $v) {
           $data[$doc->hash][$k] = $v;
         }
+        if (empty($data[$doc->hash]['sm_multisite_meta_taxonomy'])) {
+          $data[$doc->hash]['sm_multisite_meta_taxonomy'] = array();
+        }
       }
     }
     watchdog('Apache Solr Multisite', 'Fetched site meta data');
