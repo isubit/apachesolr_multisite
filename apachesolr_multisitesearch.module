@@ -296,7 +296,7 @@ function apachesolr_multisitesearch_block($op = 'list', $delta = 0, $edit = arra
   switch ($op) {
     case 'list':
       $enabled_facets = apachesolr_multisitesearch_enabled_facets('apachesolr_multisitesearch');
-      $facets = apachesolr_multisitesearch_facets();
+      $facets = apachesolr_multisitesearch_apachesolr_multisitesearch_facets();
       // Add the blocks
       $blocks = array();
       foreach ($enabled_facets as $delta => $facet_field) {
@@ -382,11 +382,11 @@ function apachesolr_multisitesearch_enabled_facets($module = NULL) {
 }
 
 /**
- * Implementation of hook_apachesolr_facets().
+ * Implementation of hook_apachesolr_multisitesearch_facets().
  *
  * Returns an array keyed by block delta.
  */
-function apachesolr_multisitesearch_facets($rebuild = FALSE) {
+function apachesolr_multisitesearch_apachesolr_multisitesearch_facets($rebuild = FALSE) {
   if (!$rebuild) {
     $cache = cache_get('apachesolr_multisitesearch:facets', 'cache_apachesolr');
     if (isset($cache->data)) {

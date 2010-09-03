@@ -109,6 +109,20 @@ function apachesolr_multisitesearch_enabled_facets_form_submit($form, &$form_sta
 }
 
 /**
+ * Indicates what order the specified facets should be listed in.  This function is used in a usort
+ * invocation.
+ * @param $a
+ *   The first facet.
+ * @param $b
+ *   The second facet.
+ * @return
+ *   A signed integer that indicates which of the specified facets should come first.
+ */
+function _apachesolr_multisitesearch_sort_facets($a, $b) {
+  return strcasecmp($a['info'], $b['info']);
+}
+
+/**
  * Creates the form that allows the user to select which facets will be enabled.
  *
  * Only enabled facets are sent to solr.  Fewer enabled facets can reduce the
@@ -121,8 +135,11 @@ function apachesolr_multisitesearch_enabled_facets_form() {
   $module_facets = array();
   $module_list = array();
 
-  $module_facets['apachesolr_multisitesearch'] = apachesolr_multisitesearch_facets(TRUE);
-  $module_list['apachesolr_multisitesearch'] = 'apachesolr_multisitesearch';
+  foreach (module_implements('apachesolr_multisitesearch_facets') as $module) {
+    $module_facets[$module] = module_invoke($module, 'apachesolr_multisitesearch_facets', TRUE);
+    uasort($module_facets[$module], '_apachesolr_multisitesearch_sort_facets');
+    $module_list[$module] = $module;
+  }
 
   $enabled_facets = apachesolr_multisitesearch_enabled_facets();
   $form = array();
