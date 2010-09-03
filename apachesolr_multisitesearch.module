@@ -320,7 +320,7 @@ function apachesolr_multisitesearch_block($op = 'list', $delta = 0, $edit = arra
         $query = apachesolr_current_query();
         switch ($delta) {
           case 'currentsearch':
-            return apachesolr_multisitesearch_currentsearch($query);
+            return apachesolr_multisitesearch_currentsearch($response, $query);
            case 'name':
             return apachesolr_facet_block($response, $query, 'apachesolr_multisitesearch', $delta, $delta, t('Filter by author'));
           case 'type':
@@ -349,7 +349,7 @@ function apachesolr_multisitesearch_block($op = 'list', $delta = 0, $edit = arra
   }
 }
 
-function apachesolr_multisitesearch_currentsearch($query) {
+function apachesolr_multisitesearch_currentsearch($response, $query) {
     $fields = $query->get_filters();
     $path = $query->get_path();
     $options = array();
