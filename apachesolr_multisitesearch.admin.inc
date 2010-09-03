@@ -215,7 +215,7 @@ function apachesolr_multisitesearch_enabled_facets_form() {
     if ($hash == apachesolr_site_hash()) {
       $options[$hash] = t('This site (!site, !count documents)', array('!site' => variable_get('site_name', 'Drupal'), '!count' => $count));
     }
-    elseif ($metadata[$hash]) {
+    elseif (!empty($metadata[$hash])) {
       $options[$hash] = $metadata[$hash]['site'] . ' ' . t('(!count documents)', array('!count' => $count));
     }
     else {
