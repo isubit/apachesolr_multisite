@@ -279,9 +279,9 @@ function apachesolr_multisitesearch_rebuild_facets() {
     'facet_field' => 'type',
   );
 
-  $facets['name'] = array(
+  $facets['sname'] = array(
     'info' => t('Apache Solr Multisite Search: Filter by author'),
-    'facet_field' => 'name',
+    'facet_field' => 'sname',
   );
 
   $facets['changed'] = array(

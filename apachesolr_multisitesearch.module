@@ -321,7 +321,7 @@ function apachesolr_multisitesearch_block($op = 'list', $delta = 0, $edit = arra
         switch ($delta) {
           case 'currentsearch':
             return apachesolr_multisitesearch_currentsearch($response, $query);
-           case 'name':
+           case 'sname':
             return apachesolr_facet_block($response, $query, 'apachesolr_multisitesearch', $delta, $delta, t('Filter by author'));
           case 'type':
             return apachesolr_facet_block($response, $query, 'apachesolr_multisitesearch', $delta, $delta, t('Filter by type'), 'apachesolr_search_get_type');
