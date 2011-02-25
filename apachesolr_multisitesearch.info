@@ -1,4 +1,3 @@
-; $Id$ 
 name = Apache Solr Multisite Search
 description = Search across multiple sites with Solr
 dependencies[] = apachesolr

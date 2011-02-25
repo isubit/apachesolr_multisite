@@ -1,4 +1,3 @@
-$Id$
 
 
 Apache Solr Search Integration 6.x-1.0-XXX, xxxx-xx-xx
