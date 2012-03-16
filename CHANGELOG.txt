@@ -2,6 +2,7 @@
 
 Apache Solr Search Integration 7.x-1.0-XXX, xxxx-xx-xx
 ------------------------------
+#1006994 by Nick_vh, wmostrey, pwolanin | webchick: Port Apache Solr Multisite Search to Drupal 7.
 #1006994 by wmostrey: Initial Drupal 7 port.
 
 Apache Solr Search Integration 6.x-1.0-RC1, xxxx-xx-xx
