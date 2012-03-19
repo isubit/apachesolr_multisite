@@ -31,12 +31,23 @@ function apachesolr_multisitesearch_menu() {
  */
 function apachesolr_multisitesearch_facetapi_facet_info($searcher_info) {
   $facets = array();
-
   $facets['hash'] = array(
     'label' => t('Site'),
-    'description' => t('Filter by Site.'),
+    'description' => t('Filter by Site (Multisite).'),
     'field' => 'hash',
     'map callback' => 'apachesolr_multisitesearch_map_hash',
+  );
+  // Create a multisite bundle name field
+  $facets['bundle_name'] = array(
+    'label' => t('Content Type'),
+    'description' => t('Filter by content type (Multisite).'),
+    'field' => 'bundle_name',
+  );
+  // Create a multisite facet field
+  $facets['sm_vid_tags'] = array(
+    'label' => t('Tags'),
+    'description' => t('Filter by Tags (Multisite).'),
+    'field' => 'sm_vid_Tags',
   );
   return $facets;
 }
