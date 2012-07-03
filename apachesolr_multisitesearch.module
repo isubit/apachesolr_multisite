@@ -98,12 +98,42 @@ function apachesolr_multisitesearch_map_hash() {
 function apachesolr_multisitesearch_apachesolr_process_results(&$results, DrupalSolrQueryInterface $query) {
   $env_id = $query->solr('getId');
   $multisite = apachesolr_environment_variable_get($env_id, 'multisitesearch');
-    if (!empty($multisite)) {
+  if (!empty($multisite)) {
     foreach ($results as $id => $result) {
       $results[$id]['extra']['hash'] = theme('apachesolr_multisitesearch_breadcrumb_hash', array('hash' => $results[$id]['fields']['hash']));
       $results[$id]['link'] = $results[$id]['fields']['url'];
     }
   }
+}
+
+/**
+* Returns available bundle names.
+*
+* @return array
+*  An array listing all of the bundle names for content types.
+*
+*  TODO: Separate content types by site, and allow for exclusions by site.
+*/
+function apachesolr_multisitesearch_query_bundles() {
+  $query_bundle_names = array();
+
+  // Check variables for the metadata which contains the bundles and bundle
+  // names.
+  $sites = variable_get('apachesolr_multisitesearch_metadata', array());
+  if (isset($sites) && !empty($sites)) {
+    // Iterates for each site available in the multi-site search
+    foreach ($sites as $key => $value) {
+      // Grabs all of the bundle names and save them.
+      foreach ($value['sm_multisite_meta_bundles'] as $bundle_name) {
+        $query_bundle_names[] = $bundle_name;
+      }
+    }
+    // Sort the bundle names for user readability. Sorting is done here so
+    // mapping keys to values later happens properly.
+    sort($query_bundle_names);
+  }
+  $query_bundle_names = array_unique($query_bundle_names);
+  return $query_bundle_names;
 }
 
 /**
@@ -124,6 +154,21 @@ function apachesolr_multisitesearch_apachesolr_query_alter(DrupalSolrQueryInterf
     if (empty($multisite)) {
       // Limit single site searchs via the site hash.
       $query->addFilter('hash', apachesolr_site_hash());
+    }
+  }
+
+  // Get the variable which contains the query exclusion keys.
+  $excluded_bundles = variable_get('apachesolr_multisitesearch_query_exclusions', array());
+  if (isset($excluded_bundles) && !empty($excluded_bundles)) {
+    // Get all of the bundle names which can be excluded.
+    $query_exclusion_options = apachesolr_multisitesearch_query_bundles();
+    // Map the excluded bundle keys to their values and bundle names.
+    foreach ($excluded_bundles as $key) {
+      $excluded_bundles[$key] = $query_exclusion_options[$key];
+    }
+    // Create filters for the flagged keys and exclude them from search.
+    foreach ($excluded_bundles as $filtered_content) {
+      $query->addFilter('bundle_name', $filtered_content, TRUE);
     }
   }
 }

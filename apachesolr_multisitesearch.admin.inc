@@ -1,6 +1,11 @@
 <?php
 
 /**
+ * @file
+ *   Administrative pages for the Apache Solr Multi-Site Search framework.
+ */
+
+/**
  * Creates the form that allows the user to select which facets will be enabled.
  *
  * Only enabled facets are sent to solr.  Fewer enabled facets can reduce the
@@ -59,7 +64,68 @@ function apachesolr_multisitesearch_settings() {
       '#submit' => array('apachesolr_multisitesearch_delete_indexes'),
     );
   }
+
+  if (count(apachesolr_multisitesearch_query_bundles()) > 0) {
+    // Grab the bundle names from the metadata and load them as options.
+    $query_exclusion_options = apachesolr_multisitesearch_query_bundles();
+    // Grab the excluded item keys from the variables.
+    $excluded_bundles = variable_get('apachesolr_multisitesearch_query_exclusions', array());
+
+    $form['query_exclusions'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Search Result Exclusions'),
+    );
+    $form['query_exclusions']['exclusion_options'] = array(
+      '#type' => 'select',
+      '#prefix' => t('<p>Select content should which should be excluded from the search query. Hold the CTRL key to select more than one item.</p><div style="apache-multisitesearch-search-exclusion">'),
+      '#title' => t('Content Types'),
+      '#description' => t('Content types to exclude from search. Multiple selections are allowed'),
+      '#multiple' => TRUE,
+      '#default_value' => $excluded_bundles ? $excluded_bundles : '',
+      '#options' => $query_exclusion_options,
+      '#suffix' => '</div>',
+    );
+    $form['query_exclusions']['submit'] = array(
+      '#type' => 'submit',
+      '#value' => t('Exclude content'),
+      '#submit' => array('apachesolr_multisitesearch_exclude_indexes'),
+    );
+    $form['query_exclusions']['clear'] = array(
+      '#type' => 'submit',
+      '#value' => t('Clear all exclusions'),
+      '#submit' => array('apachesolr_multisitesearch_exclude_indexes'),
+    );
+  }
+
   return $form;
+}
+
+/**
+ * Submit handler for the "Exclude content types" button.
+ */
+function apachesolr_multisitesearch_exclude_indexes($form, &$form_state) {
+  $fv = $form_state['values'];
+  if ($fv['op'] == t('Clear all exclusions')) {
+    variable_del('apachesolr_multisitesearch_query_exclusions');
+    drupal_set_message('All content exclusions have been cleared.');
+  }
+  elseif (isset($fv['query_exclusions']['exclusion_options']) &&
+    !empty($fv['query_exclusions']['exclusion_options'])) {
+    // Set the variable to store the query filter keys and create a string
+    // to display the excluded content.
+    variable_set('apachesolr_multisitesearch_query_exclusions', $fv['query_exclusions']['exclusion_options']);
+    $query_exclusion_options = apachesolr_multisitesearch_query_bundles();
+    // Match the exclusion options' keys to their values and slap them together.
+    $matches = array_intersect_key($query_exclusion_options, $fv['query_exclusions']['exclusion_options']);
+    $output = implode($matches, ", ");
+    drupal_set_message(t('The following content types will be excluded from search: <em>@output</em>', array('@output' => $output)));
+  }
+  else {
+    // If nothing is selected to be excluded, delete the variable, and
+    // let the user know.
+    variable_del('apachesolr_multisitesearch_query_exclusions');
+    drupal_set_message(t('<strong>No content</strong> will be excluded from search.'));
+  }
 }
 
 /**
@@ -67,10 +133,11 @@ function apachesolr_multisitesearch_settings() {
  */
 function apachesolr_multisitesearch_delete_indexes($form, &$form_state) {
   module_load_include('inc', 'apachesolr_multisitesearch', 'apachesolr_multisitesearch.index');
+  $fv = $form_state['values'];
   // Instantiate a new Solr object.
   $solr = apachesolr_get_solr();
   $env_id = apachesolr_default_environment();
-  foreach ($form_state['values']['admin']['delete']['hashes'] as $hash) {
+  foreach ($fv['admin']['delete']['hashes'] as $hash) {
     if ($hash) {
       $query = "hash:$hash";
       $solr->deleteByQuery($query);
