@@ -79,7 +79,7 @@ function apachesolr_multisitesearch_settings() {
       '#type' => 'select',
       '#prefix' => t('<p>Select content should which should be excluded from the search query. Hold the CTRL key to select more than one item.</p><div style="apache-multisitesearch-search-exclusion">'),
       '#title' => t('Content Types'),
-      '#description' => t('Content types to exclude from search. Multiple selections are allowed'),
+      '#description' => t('Content types to exclude from search. Multiple selections are allowed.'),
       '#multiple' => TRUE,
       '#default_value' => $excluded_bundles ? $excluded_bundles : '',
       '#options' => $query_exclusion_options,
