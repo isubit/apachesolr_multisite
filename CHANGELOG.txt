@@ -1,5 +1,9 @@
 Apache Solr Search Integration 7.x-1.0-XXX, xxxx-xx-xx
 ------------------------------
+#1801666 by pwolanin: Improve README, docs, api docs.
+
+Apache Solr Search Integration 7.x-1.0, xxxx-xx-xx
+------------------------------
 #1588684 by andrew.yang, Nick_vh: Added Filtering specific content types from search queries.
 #1489896 by Nick_vh: Added facets for Cross site content types and tags.
 #1006994 by Nick_vh, wmostrey, pwolanin | webchick: Port Apache Solr Multisite Search to Drupal 7.
