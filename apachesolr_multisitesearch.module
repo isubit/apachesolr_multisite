@@ -55,7 +55,6 @@ function apachesolr_multisitesearch_facetapi_facet_info($searcher_info) {
     'description' => t('Filter by user name (Multisite).'),
     'field' => 'ss_name',
     'map callback' => 'apachesolr_multisitesearch_map_username',
-    'facet missing allowed' => TRUE,
   );
   return $facets;
 }
@@ -63,8 +62,8 @@ function apachesolr_multisitesearch_facetapi_facet_info($searcher_info) {
 function apachesolr_multisitesearch_map_username($facets, $options) {
   $map = array();
   foreach ($facets as $key) {
-    if ($key == '_empty_') {
-      // @todo fix/check $options['facet missing allowed']
+    // @see https://drupal.org/node/2050747
+    if ($key == '0' || $key == '_empty_') {
       $map[$key]['#markup'] = variable_get('anonymous', t('Anonymous'));
     }
     else {
