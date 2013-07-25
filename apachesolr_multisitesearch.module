@@ -49,7 +49,29 @@ function apachesolr_multisitesearch_facetapi_facet_info($searcher_info) {
     'description' => t('Filter by Tags (Multisite).'),
     'field' => 'sm_vid_Tags',
   );
+  // Create a multisite facet field
+  $facets['ss_name'] = array(
+    'label' => t('User name'),
+    'description' => t('Filter by user name (Multisite).'),
+    'field' => 'ss_name',
+    'map callback' => 'apachesolr_multisitesearch_map_username',
+    'facet missing allowed' => TRUE,
+  );
   return $facets;
+}
+
+function apachesolr_multisitesearch_map_username($facets, $options) {
+  $map = array();
+  foreach ($facets as $key) {
+    if ($key == '_empty_') {
+      // @todo fix/check $options['facet missing allowed']
+      $map[$key]['#markup'] = variable_get('anonymous', t('Anonymous'));
+    }
+    else {
+      $map[$key]['#markup'] = $key;
+    }
+  }
+  return $map;
 }
 
 /**
@@ -101,7 +123,13 @@ function apachesolr_multisitesearch_apachesolr_process_results(&$results, Drupal
   if (!empty($multisite)) {
     foreach ($results as $id => $result) {
       $results[$id]['extra']['hash'] = theme('apachesolr_multisitesearch_breadcrumb_hash', array('hash' => $results[$id]['fields']['hash']));
-      $results[$id]['link'] = $results[$id]['fields']['url'];
+      // Fix up results from remote sites.
+      if ($results[$id]['fields']['hash'] != apachesolr_site_hash()) {
+        $results[$id]['link'] = $results[$id]['fields']['url'];
+        if (isset($results[$id]['user']) && !empty($results[$id]['fields']['name'])) {
+          $results[$id]['user'] = check_plain($results[$id]['fields']['name']);
+        }
+      }
     }
   }
 }
