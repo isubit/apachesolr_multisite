@@ -1,5 +1,6 @@
 Apache Solr Search Integration 7.x-1.0-XXX, xxxx-xx-xx
 ------------------------------
+#2017689 by pwolanin: fox for query type for fetching meta data.
 #2050715 by pwolanin: fix for missing user name multisite facet.
 #1996372 by sdrycroft: fix for apachesolr_multisitesearch_apachesolr_delete_by_query_alter not by reference.
 #1801666 by pwolanin: Improve README, docs, api docs.
