@@ -67,6 +67,7 @@ function apachesolr_multisitesearch_retrieve_metadata() {
     $params['defType'] = 'lucene';
     $params['fl'] = '*';
     $response = $solr->search('entity_type:multisite.meta', $params);
+    $data = array();
     foreach ($response->response->docs as $doc) {
       // Convert doc into a simple array.
       if (isset($doc->hash)) {
