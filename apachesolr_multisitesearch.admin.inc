@@ -13,7 +13,6 @@
  * this also reduces the clutter on the blocks admin page.
  */
 function apachesolr_multisitesearch_settings() {
-  module_load_include('inc', 'apachesolr_multisitesearch', 'apachesolr_multisitesearch.index');
   $form = array();
   $form['#tree'] = TRUE;
   $form['submit_message'] = array(
@@ -31,26 +30,7 @@ function apachesolr_multisitesearch_settings() {
     '#submit' => array('apachesolr_multisitesearch_refresh_metadata_now'),
   );
 
-  // Use the metadata and a list of all the hashes in the index
-  // to build up checkboxes for deleting site indexes.
-  // This is only necessary because sometimes hashes get
-  // stranded in the index and deleting the index from the normal
-  // admin screen doesn't rectify the problem.
-  $metadata = variable_get('apachesolr_multisitesearch_metadata', array());
-  $hashes = apachesolr_multisitesearch_get_site_hashes();
-  $options = array();
-  foreach ($hashes as $hash => $count) {
-    if ($hash == apachesolr_site_hash()) {
-      $options[$hash] = t('This site (!site, !count documents)', array('!site' => variable_get('site_name', 'Drupal'), '!count' => $count));
-    }
-    elseif (!empty($metadata[$hash])) {
-      $options[$hash] = $metadata[$hash]['site'] . ' ' . t('(!count documents)', array('!count' => $count));
-    }
-    else {
-      $options[$hash] = $hash . ' ' . t('(!count documents)', array('!count' => $count));
-    }
-  }
-
+  $options = apachesolr_multisitesearch_get_site_options();
   if (count($options) > 0) {
     $form['admin']['delete']['hashes'] = array(
       '#type' => 'checkboxes',

@@ -150,5 +150,6 @@ function apachesolr_multisitesearch_get_site_hashes() {
   catch (Exception $e) {
     watchdog('Apache Solr Multisite', 'Failed to fetch hash facet count <br /> !message',
              array('!message' => nl2br(strip_tags($e->getMessage()))), WATCHDOG_ERROR);
+    return array();
   }
 }

@@ -80,12 +80,29 @@ function apachesolr_multisitesearch_map_username($facets, $options) {
  */
 function apachesolr_multisitesearch_form_apachesolr_environment_edit_form_alter(&$form, &$form_state, $form_id) {
   $environment = reset($form_state['build_info']['args']);
-  $is_multisite = apachesolr_environment_variable_get($environment['env_id'], 'multisitesearch');
+
   $form['make_multisite'] = array(
     '#type' => 'checkbox',
     '#title' => t('Make this Solr search environment multisite capable'),
-    '#default_value' => $is_multisite,
+    '#default_value' => apachesolr_environment_variable_get($environment['env_id'], 'multisitesearch', FALSE),
   );
+
+  $options = apachesolr_multisitesearch_get_site_options();
+  $form['multisitesearch_sites'] = array(
+    '#type' => 'select',
+    '#title' => t('Limit searching to the following sites:'),
+    '#description' => t('If no sites are selected, searches will be performed across all sites on the index.'),
+    '#multiple' => TRUE,
+    '#options' => $options,
+    '#default_value' => apachesolr_environment_variable_get($environment['env_id'], 'multisitesearch_sites', array()),
+    '#states' => array(
+      'visible' => array(
+        ':input[name="make_multisite"]' => array('checked' => TRUE),
+      ),
+    ),
+    '#access' => !empty($options),
+  );
+
   $form['actions']['save']['#submit'][] = 'apachesolr_multisitesearch_environment_edit_submit';
 }
 
@@ -95,6 +112,41 @@ function apachesolr_multisitesearch_form_apachesolr_environment_edit_form_alter(
 function apachesolr_multisitesearch_environment_edit_submit($form, &$form_state) {
   // Enable or disable multisite
   apachesolr_environment_variable_set($form_state['values']['env_id'], 'multisitesearch', $form_state['values']['make_multisite']);
+  apachesolr_environment_variable_set($form_state['values']['env_id'], 'multisitesearch_sites', $form_state['values']['multisitesearch_sites']);
+}
+
+/**
+ * Return an array of multisite search sites keyed by hash.
+ */
+function apachesolr_multisitesearch_get_site_options() {
+  $options = &drupal_static(__FUNCTION__);
+
+  if (!isset($options)) {
+    $site_hash = apachesolr_site_hash();
+    module_load_include('inc', 'apachesolr_multisitesearch', 'apachesolr_multisitesearch.index');
+    $metadata = variable_get('apachesolr_multisitesearch_metadata', array());
+    $hashes = apachesolr_multisitesearch_get_site_hashes();
+
+    $options = array();
+    foreach ($hashes as $hash => $count) {
+      if ($hash == $site_hash) {
+        $options[$hash] = t('This site (!site, !count documents)', array('!site' => variable_get('site_name', 'Drupal'), '!count' => $count));
+      }
+      elseif (!empty($metadata[$hash])) {
+        $options[$hash] = $metadata[$hash]['site'] . ' ' . t('(!count documents)', array('!count' => $count));
+      }
+      else {
+        $options[$hash] = $hash . ' ' . t('(!count documents)', array('!count' => $count));
+      }
+    }
+
+    // This site should always be in the list of options.
+    if (!isset($options[$site_hash])) {
+      $options[$site_hash] = t('This site (!site)', array('!site' => variable_get('site_name', 'Drupal')));
+    }
+  }
+
+  return $options;
 }
 
 /**
@@ -164,6 +216,31 @@ function apachesolr_multisitesearch_query_bundles() {
 }
 
 /**
+ * Create a Solr query for a multisite search from an environment's settings.
+ *
+ * @param string $env_id
+ *   An Apache Solr environment ID.
+ *
+ * @return DrupalSolrQueryInterface|bool
+ *   A subquery object to apply, or FALSE if there were no filters to apply.
+ */
+function apachesolr_multisitesearch_build_site_subquery($env_id) {
+  $subquery = apachesolr_drupal_subquery();
+
+  if (!apachesolr_environment_variable_get($env_id, 'multisitesearch', FALSE)) {
+    // Limit single site searchs via the site hash.
+    $subquery->addFilter('hash', apachesolr_site_hash());
+  }
+  elseif ($sites = apachesolr_environment_variable_get($env_id, 'multisitesearch_sites', array())) {
+    foreach ($sites as $site) {
+      $subquery->addFilter('hash', $site);
+    }
+  }
+
+  return $subquery->getFilters() ? $subquery : FALSE;
+}
+
+/**
  * Implements hook_apachesolr_query_alter().
  *
  * Verifies if the environment is multisite enabled, and if so, returns
@@ -173,14 +250,13 @@ function apachesolr_multisitesearch_query_bundles() {
  */
 function apachesolr_multisitesearch_apachesolr_query_alter(DrupalSolrQueryInterface $query) {
   if (empty($query->multisite)) {
-    $env_id = $query->solr('getId');
-    $multisite = apachesolr_environment_variable_get($env_id, 'multisitesearch');
     // Add hash and site to our fields to retrieve
     $query->addParam('fl', 'hash');
     $query->addParam('fl', 'site');
-    if (empty($multisite)) {
-      // Limit single site searchs via the site hash.
-      $query->addFilter('hash', apachesolr_site_hash());
+
+    // Restrict the query to certain sites.
+    if ($subquery = apachesolr_multisitesearch_build_site_subquery($query->solr('getId'))) {
+      $query->addFilterSubQuery($subquery);
     }
   }
 
