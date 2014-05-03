@@ -326,3 +326,29 @@ function theme_apachesolr_multisitesearch_breadcrumb_hash($variables) {
   }
   return $hash;
 }
+
+/**
+ * Implements hook_form_alter().
+ *
+ * @see apachesolr_settings()
+ */
+function apachesolr_multisitesearch_form_apachesolr_settings_alter(&$form, &$form_state) {
+  $form['multisite'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Multisite'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['multisite']['apachesolr_multisitesearch_metadata_update_interval'] = array(
+    '#type' => 'select',
+    '#title' => t('How often to push metadata updates from this site and commit them to Solr'),
+    '#options' => drupal_map_assoc(array(300, 900, 1800, 3600, 10800, 21600, 43200, 86400, 604800, 1209600, 2592000), 'format_interval'),
+    '#default_value' => variable_get('apachesolr_multisitesearch_metadata_update_interval', 3600),
+  );
+  $form['multisite']['apachesolr_multisitesearch_metadata_fetch_interval'] = array(
+    '#type' => 'select',
+    '#title' => t('How often to fetch metadata data from the index'),
+    '#options' => drupal_map_assoc(array(300, 900, 1800, 3600, 10800, 21600, 43200, 86400, 604800), 'format_interval'),
+    '#default_value' => variable_get('apachesolr_multisitesearch_metadata_fetch_interval', 300),
+  );
+}
