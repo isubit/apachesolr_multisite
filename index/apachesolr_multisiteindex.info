@@ -1,0 +1,5 @@
+name = Apache Solr Multisite Index
+description = Index content so it be accessed by Apache Solr Multisite Search
+dependencies[] = apachesolr
+package = Search Toolkit
+core = "7.x"

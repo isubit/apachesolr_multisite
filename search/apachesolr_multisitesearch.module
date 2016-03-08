@@ -11,7 +11,7 @@
 function apachesolr_multisitesearch_menu() {
   $items = array();
   $items['admin/config/search/apachesolr/multisite-filters'] = array(
-    'title' => 'Multisite',
+    'title' => 'Multisite Search',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('apachesolr_multisitesearch_settings'),
     'weight' => -8,
@@ -338,12 +338,6 @@ function apachesolr_multisitesearch_form_apachesolr_settings_alter(&$form, &$for
     '#title' => t('Multisite'),
     '#collapsible' => TRUE,
     '#collapsed' => TRUE,
-  );
-  $form['multisite']['apachesolr_multisitesearch_metadata_update_interval'] = array(
-    '#type' => 'select',
-    '#title' => t('How often to push metadata updates from this site and commit them to Solr'),
-    '#options' => drupal_map_assoc(array(300, 900, 1800, 3600, 10800, 21600, 43200, 86400, 604800, 1209600, 2592000), 'format_interval'),
-    '#default_value' => variable_get('apachesolr_multisitesearch_metadata_update_interval', 3600),
   );
   $form['multisite']['apachesolr_multisitesearch_metadata_fetch_interval'] = array(
     '#type' => 'select',

@@ -1,0 +1,9 @@
+<?php
+
+/**
+ * Implements hook_uninstall().
+ */
+function apachesolr_multisiteindex_uninstall() {
+  variable_del('apachesolr_multisiteindex_metadata_update_interval');
+  variable_del('apachesolr_multisiteindex_last_metadata_update');
+}

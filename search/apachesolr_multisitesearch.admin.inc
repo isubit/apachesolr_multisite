@@ -138,7 +138,6 @@ function apachesolr_multisitesearch_delete_indexes($form, &$form_state) {
 function apachesolr_multisitesearch_refresh_metadata_now() {
   module_load_include('inc', 'apachesolr_multisitesearch', 'apachesolr_multisitesearch.index');
   // Delete all current variables and refresh them
-  variable_del('apachesolr_multisitesearch_last_metadata_update');
   variable_del('apachesolr_multisitesearch_last_metadata_fetch');
   apachesolr_multisitesearch_refresh_metadata();
   drupal_set_message(t('The metadata has been refreshed.'));

@@ -1,0 +1,195 @@
+<?php
+
+/**
+ * @file
+ *   Provides a multi-site index implementation for use with the Apache Solr module
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function apachesolr_multisiteindex_menu() {
+  $items = array();
+  $items['admin/config/search/apachesolr/multisite-index'] = array(
+    'title' => 'Multisite Index',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('apachesolr_multisiteindex_settings'),
+    'weight' => -9,
+    'access arguments' => array('administer search'),
+    'type' => MENU_LOCAL_TASK,
+  );
+  return $items;
+}
+
+function apachesolr_multisiteindex_settings() {
+  $form = array();
+  $form['#tree'] = TRUE;
+  $form['submit_message'] = array(
+    '#type' => 'value',
+    '#value' => t('The Apache Solr Multisite Index settings were changed.'),
+  );
+  $form['admin'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Administrative functions'),
+  );
+  $form['admin']['resend'] = array(
+    '#type' => 'submit',
+    '#value' => t('Resend metadata now'),
+    '#prefix' => '<p>' . t('Multisite metadata is used to communicate between all of the sites in a multisite setup. Metadata is also resent periodically on cron runs.') . '</p>',
+    '#submit' => array('apachesolr_multisiteindex_resend_metadata_now'),
+  );
+  return $form;
+}
+
+/**
+ * Submit handler for the "Resend metadata now" button.
+ */
+function apachesolr_multisiteindex_resend_metadata_now() {
+  // Delete all current variables and refresh them
+  variable_del('apachesolr_multisiteindex_last_metadata_update');
+  apachesolr_multisiteindex_refresh_metadata(TRUE);
+  drupal_set_message(t('The metadata has been resent.'));
+}
+
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ *
+ * Adds a "send multisite metadata" option in the settings of any environment
+ */
+function apachesolr_multisiteindex_form_apachesolr_environment_edit_form_alter(&$form, &$form_state, $form_id) {
+  $environment = reset($form_state['build_info']['args']);
+  $form['send_multisite_metadata'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Send multisite metadata to this Solr environment'),
+    '#default_value' => apachesolr_environment_variable_get($environment['env_id'], 'multisiteindex', FALSE),
+  );
+  $form['actions']['save']['#submit'][] = 'apachesolr_multisiteindex_environment_edit_submit';
+}
+
+/**
+ * Submit callback for saving an environment
+ */
+function apachesolr_multisiteindex_environment_edit_submit($form, &$form_state) {
+  // Enable or disable multisite
+  apachesolr_environment_variable_set($form_state['values']['env_id'], 'multisiteindex', $form_state['values']['send_multisite_metadata']);
+  apachesolr_multisiteindex_refresh_metadata();
+}
+
+/**
+ * Implements hook_form_alter().
+ *
+ * @see apachesolr_settings()
+ */
+function apachesolr_multisiteindex_form_apachesolr_settings_alter(&$form, &$form_state) {
+  $form['multisite'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Multisite'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+  );
+  $form['multisite']['apachesolr_multisiteindex_metadata_update_interval'] = array(
+    '#type' => 'select',
+    '#title' => t('How often to push metadata updates from this site and commit them to Solr'),
+    '#options' => drupal_map_assoc(array(300, 900, 1800, 3600, 10800, 21600, 43200, 86400, 604800, 1209600, 2592000), 'format_interval'),
+    '#default_value' => variable_get('apachesolr_multisiteindex_metadata_update_interval', 3600),
+  );
+}
+
+
+/**
+ * Implements hook_cron().
+ */
+function apachesolr_multisiteindex_cron() {
+  apachesolr_multisiteindex_refresh_metadata();
+}
+
+function apachesolr_multisiteindex_refresh_metadata() {
+  // Update meta data 1x per hour max.
+  $last_update = variable_get('apachesolr_multisiteindex_last_metadata_update', 0);
+  $time = REQUEST_TIME;
+  if ($time - $last_update > variable_get('apachesolr_multisiteindex_metadata_update_interval', 3600)) {
+    if (apachesolr_multisiteindex_send_metadata()) {
+      variable_set('apachesolr_multisiteindex_last_metadata_update', $time);
+    }
+  }
+  $env_id = apachesolr_default_environment();
+  apachesolr_set_last_index_updated($env_id, $time);
+}
+
+/**
+ * Create a document to send to the index that contains useful information
+ * regarding the website.
+ * @return ApacheSolrDocument
+ */
+function apachesolr_multisiteindex_generate_metadata() {
+  $document = new ApacheSolrDocument();
+  $document->id = apachesolr_document_id(1, 'multisite.metadata');
+  $document->site = url(NULL, array('absolute' => TRUE));
+  $document->hash = apachesolr_site_hash();
+  $document->entity_id = 1;
+  $document->entity_type = 'multisite.meta';
+  $document->ss_multisite_meta_sitename = variable_get('site_name', 'Drupal');
+
+  // Add bundle information to our metadata
+  foreach (entity_get_info() as $entity_type => $info) {
+    // We index each name as a string for cross-site faceting
+    foreach ($info['bundles'] as $bundle => $bundle_info) {
+      if (!empty($bundle_info['apachesolr']['index'])) {
+        $document->setMultiValue('sm_multisite_meta_bundles', $bundle_info['label']);
+      }
+    }
+  }
+
+  // Add taxonomy to our metadata
+  if (module_exists('taxonomy')) {
+    module_load_include('inc', 'apachesolr', 'apachesolr.index');
+    $vocabs = taxonomy_get_vocabularies();
+    foreach ($vocabs as $vid => $vocab) {
+      // We index each name as a string for cross-site faceting
+      // using the vocab name rather than vid in field construction.
+      $document->setMultiValue('sm_multisite_meta_taxonomy', apachesolr_vocab_name($vid));
+    }
+  }
+  // Allow alterations to this meta data
+  drupal_alter('apachesolr_multisiteindex_metadata', $document);
+  return $document;
+}
+
+function apachesolr_multisiteindex_send_metadata() {
+  try {
+    // Get the $solr object
+    $solr = apachesolr_get_solr();
+    $metadata_doc = apachesolr_multisiteindex_generate_metadata();
+    $solr->addDocuments(array($metadata_doc));
+    $solr->commit();
+    watchdog('Apache Solr Multisite Index', 'Updated site meta data');
+    return TRUE;
+  }
+  catch (Exception $e) {
+    watchdog('Apache Solr Multisite Index', 'Indexing failed for meta data <br /> !message',
+      array('!message' => nl2br(strip_tags($e->getMessage()))), WATCHDOG_ERROR);
+  }
+  return FALSE;
+}
+
+function apachesolr_multisiteindex_delete_metadata($hash = NULL) {
+  try {
+    // Get the $solr object
+    $solr = apachesolr_get_solr();
+    if (empty($hash)) {
+      $query = "entity_type:multisite.meta";
+    }
+    else {
+      $query = "hash:$hash AND entity_type:multisite.meta";
+    }
+    $solr->deleteByQuery($query);
+    watchdog('Apache Solr Multisite Index', 'Removed meta data from the index');
+    return TRUE;
+  }
+  catch (Exception $e) {
+    watchdog('Apache Solr Multisite Index', 'Removing meta data failed. <br /> !message',
+        array('!message' => nl2br(strip_tags($e->getMessage()))), WATCHDOG_ERROR);
+  }
+  return FALSE;
+}
