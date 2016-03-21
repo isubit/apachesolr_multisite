@@ -1,10 +1,10 @@
 <?php
 
-function apachesolr_multisitesearch_refresh_metadata() {
+function apachesolr_multisitesearch_refresh_metadata($force = FALSE) {
   // Fetch meta data 1x per 5 minutes max.
   $last_fetch = variable_get('apachesolr_multisitesearch_last_metadata_fetch', 0);
   $time = REQUEST_TIME;
-  if ($time - $last_fetch > variable_get('apachesolr_multisitesearch_metadata_fetch_interval', 300)) {
+  if ($force || $time - $last_fetch > variable_get('apachesolr_multisitesearch_metadata_fetch_interval', 300)) {
     apachesolr_multisitesearch_retrieve_metadata();
   }
   $env_id = apachesolr_default_environment();

@@ -139,6 +139,6 @@ function apachesolr_multisitesearch_refresh_metadata_now() {
   module_load_include('inc', 'apachesolr_multisitesearch', 'apachesolr_multisitesearch.index');
   // Delete all current variables and refresh them
   variable_del('apachesolr_multisitesearch_last_metadata_fetch');
-  apachesolr_multisitesearch_refresh_metadata();
+  apachesolr_multisitesearch_refresh_metadata(TRUE);
   drupal_set_message(t('The metadata has been refreshed.'));
 }
