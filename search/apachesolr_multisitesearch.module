@@ -44,18 +44,28 @@ function apachesolr_multisitesearch_facetapi_facet_info($searcher_info) {
     'field' => 'bundle_name',
   );
   // Create a multisite facet field
-  $facets['sm_vid_tags'] = array(
-    'label' => t('Tags'),
-    'description' => t('Filter by Tags (Multisite).'),
-    'field' => 'sm_vid_Tags',
-  );
-  // Create a multisite facet field
   $facets['ss_name'] = array(
     'label' => t('User name'),
     'description' => t('Filter by user name (Multisite).'),
     'field' => 'ss_name',
     'map callback' => 'apachesolr_multisitesearch_map_username',
   );
+  // Expose a facet per vocabulary.
+  $solr_metadata = variable_get('apachesolr_multisitesearch_metadata');
+  if ($solr_metadata) {
+    foreach ($solr_metadata as $site) {
+      if (isset($site['sm_multisite_meta_taxonomy'])) {
+        foreach ($site['sm_multisite_meta_taxonomy'] as $vocabulary) {
+          $vocabulary_name = str_replace('_' , ' ', $vocabulary);
+          $facets['sm_vid_' . $vocabulary] = array(
+            'label' => t($vocabulary_name),
+            'description' => t('Filter by !vocabulary (Multisite).', array('!vocabulary' => $vocabulary_name)),
+            'field' => 'sm_vid_' . $vocabulary,
+          );
+        }
+      }
+    }
+  }
   return $facets;
 }
 
