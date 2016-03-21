@@ -109,12 +109,17 @@ function apachesolr_multisiteindex_refresh_metadata($force = FALSE) {
   $last_update = variable_get('apachesolr_multisiteindex_last_metadata_update', 0);
   $time = REQUEST_TIME;
   if ($force || $time - $last_update > variable_get('apachesolr_multisiteindex_metadata_update_interval', 3600)) {
-    if (apachesolr_multisiteindex_send_metadata()) {
-      variable_set('apachesolr_multisiteindex_last_metadata_update', $time);
+    foreach (apachesolr_load_all_environments() as $env_id => $environment) {
+      if (!$environment['conf']['apachesolr_read_only']) {
+        if ($environment['conf']['multisiteindex']) {
+          if (apachesolr_multisiteindex_send_metadata($env_id)) {
+            apachesolr_set_last_index_updated($env_id, $time);
+          }
+        }
+      }
     }
+    variable_set('apachesolr_multisiteindex_last_metadata_update', $time);
   }
-  $env_id = apachesolr_default_environment();
-  apachesolr_set_last_index_updated($env_id, $time);
 }
 
 /**
@@ -156,10 +161,10 @@ function apachesolr_multisiteindex_generate_metadata() {
   return $document;
 }
 
-function apachesolr_multisiteindex_send_metadata() {
+function apachesolr_multisiteindex_send_metadata($env_id = NULL) {
   try {
     // Get the $solr object
-    $solr = apachesolr_get_solr();
+    $solr = apachesolr_get_solr($env_id);
     $metadata_doc = apachesolr_multisiteindex_generate_metadata();
     $solr->addDocuments(array($metadata_doc));
     $solr->commit();
