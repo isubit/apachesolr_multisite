@@ -115,6 +115,10 @@ function apachesolr_multisiteindex_refresh_metadata($force = FALSE) {
           if (apachesolr_multisiteindex_send_metadata($env_id)) {
             apachesolr_set_last_index_updated($env_id, $time);
           }
+        } else {
+          if (apachesolr_multisiteindex_delete_metadata($env_id)) {
+            apachesolr_set_last_index_updated($env_id, $time);
+          }
         }
       }
     }
@@ -178,17 +182,14 @@ function apachesolr_multisiteindex_send_metadata($env_id = NULL) {
   return FALSE;
 }
 
-function apachesolr_multisiteindex_delete_metadata($hash = NULL) {
+function apachesolr_multisiteindex_delete_metadata($env_id = NULL) {
   try {
     // Get the $solr object
-    $solr = apachesolr_get_solr();
-    if (empty($hash)) {
-      $query = "entity_type:multisite.meta";
-    }
-    else {
-      $query = "hash:$hash AND entity_type:multisite.meta";
-    }
+    $hash = apachesolr_site_hash();
+    $solr = apachesolr_get_solr($env_id);
+    $query = "hash:$hash AND entity_type:multisite.meta";
     $solr->deleteByQuery($query);
+    $solr->commit();
     watchdog('Apache Solr Multisite Index', 'Removed meta data from the index');
     return TRUE;
   }
